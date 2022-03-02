@@ -34,8 +34,16 @@ SDL_bool HandleEvents()
   return SDL_FALSE;
 }
 
+void RedirectLog()
+{
+  freopen("lsystem.log", "w", stdout);
+  freopen("lsystem.log", "w", stderr);
+}
+
 int main(int argc, char** argv)
 {
+  RedirectLog();
+
   std::string ini_file = "example.ini";
   std::string output_file = "lsystem.bmp";
   bool save = false;
@@ -44,23 +52,27 @@ int main(int argc, char** argv)
   do
   {
     std::string opt(argv[i]);
-    if (i < argc-1)
+  
+    if (opt == "-c" || opt == "--config")
     {
-      if (opt == "-c" || opt == "--config")
+      if (i < argc-1)
       {
         ini_file = std::string(argv[i+1]);
         i += 2;
       }
-      else if (opt == "-o" || opt == "--output")
+      else
+        ++i;
+    }
+    else if (opt == "-o" || opt == "--output")
+    {
+      save = true;
+      if (i < argc-1)
       {
         output_file = std::string(argv[i+1]);
-        save = true;
         i += 2;
       }
       else
-      {
         ++i;
-      }
     }
     else
     {
@@ -198,11 +210,14 @@ int main(int argc, char** argv)
 
         done = HandleEvents();
 
-        if (save && saved && doneRendering)
-          done = SDL_TRUE;
+        if (!display)
+        {
+          if (save && saved && doneRendering)
+            done = SDL_TRUE;
 
-        if(!save && doneRendering && !display)
-          done = SDL_TRUE;
+          if(!save && doneRendering)
+            done = SDL_TRUE;
+        }
 
         Uint64 end = SDL_GetPerformanceCounter();
         float elapsedMS = (end - start) / (float)SDL_GetPerformanceFrequency() * 1000.0f;
