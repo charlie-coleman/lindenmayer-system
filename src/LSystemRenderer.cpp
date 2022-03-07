@@ -7,8 +7,9 @@
 #include <iostream>
 #include <limits>
 
-LSystemRenderer::LSystemRenderer(SDL_Window* window)
+LSystemRenderer::LSystemRenderer(SDL_Window* window, std::vector<Constant>& axiom)
   : m_window(window)
+  , m_axiom(axiom)
   , m_length(1)
   , m_lineWidth(1.0f)
   , m_rotate(90.0f)
@@ -16,18 +17,20 @@ LSystemRenderer::LSystemRenderer(SDL_Window* window)
   , m_origY(0.0f)
   , m_startRot(0.0f)
   , m_center(true)
-  , m_drawn(false)
   , m_colorful(false)
-  , m_saturation(0.5f)
   , m_stateStack()
+  , m_drawIndex(0)
 {
   m_color.Hue = 0;
-  m_color.Saturation = m_saturation;
+  m_color.Saturation = 0.5f;
   m_color.Value = 1;
+  
+  SDL_GetWindowSize(m_window, &m_windowWidth, &m_windowHeight);
 }
 
-LSystemRenderer::LSystemRenderer(SDL_Window* window, float length, float lineWidth, float rotate, float startRotate)
+LSystemRenderer::LSystemRenderer(SDL_Window* window, std::vector<Constant>& axiom, float length, float lineWidth, float rotate, float startRotate)
   : m_window(window)
+  , m_axiom(axiom)
   , m_length(length)
   , m_lineWidth(lineWidth)
   , m_rotate(rotate)
@@ -35,14 +38,15 @@ LSystemRenderer::LSystemRenderer(SDL_Window* window, float length, float lineWid
   , m_origX(0.0f)
   , m_origY(0.0f)
   , m_center(true)
-  , m_drawn(false)
   , m_colorful(false)
-  , m_saturation(0.5f)
   , m_stateStack()
+  , m_drawIndex(0)
 {
   m_color.Hue = 0;
-  m_color.Saturation = m_saturation;
+  m_color.Saturation = 0.5f;
   m_color.Value = 1;
+
+  SDL_GetWindowSize(m_window, &m_windowWidth, &m_windowHeight);
 }
 
 LSystemRenderer::~LSystemRenderer()
@@ -87,87 +91,101 @@ void LSystemRenderer::SetColorful(bool colorful)
 
 void LSystemRenderer::SetSaturation(float saturation)
 {
-  m_saturation = saturation;
   m_color.Saturation = saturation;
 }
 
-RGB LSystemRenderer::HSV_To_RGB(HSV hsv)
+void LSystemRenderer::SetAxiom(std::vector<Constant>& axiom)
 {
-  int i = (int)floorf(hsv.Hue * 6);
-  float f = hsv.Hue * 6.0f - i;
-  float p = hsv.Value * (1.0f - hsv.Saturation);
-  float q = hsv.Value * (1.0f - f * hsv.Saturation);
-  float t = hsv.Value * (1.0f - (1.0f - f) * hsv.Saturation);
-
-  RGB output;
-  switch (i % 6)
-  {
-    case 0:
-      output.Red = hsv.Value;
-      output.Green = t;
-      output.Blue = p;
-      break;
-    case 1:
-      output.Red = q;
-      output.Green = hsv.Value;
-      output.Blue = p;
-      break;
-    case 2:
-      output.Red = p;
-      output.Green = hsv.Value;
-      output.Blue = t;
-      break;
-    case 3:
-      output.Red = p;
-      output.Green = q;
-      output.Blue = hsv.Value;
-      break;
-    case 4:
-      output.Red = t;
-      output.Green = p;
-      output.Blue = hsv.Value;
-      break;
-    case 5:
-    default:
-      output.Red = hsv.Value;
-      output.Green = p;
-      output.Blue = q;
-      break;
-  }
-
-  return output;
+  m_axiom = axiom;
 }
 
-bool LSystemRenderer::CenterOrigin(float minX, float maxX, float minY, float maxY)
+void LSystemRenderer::Center()
 {
-    float centerX = (maxX + minX) / 2.0f;
-    float centerY = (maxY + minY) / 2.0f;
+  m_x = m_origX;
+  m_y = m_origY;
+  m_currRot = m_startRot;
+  m_stateStack = std::stack<RendererState>();
 
-    int width, height;
-    SDL_GetWindowSize(m_window, &width, &height);
+  m_minX = std::numeric_limits<float>::max();
+  m_maxX = std::numeric_limits<float>::min();
 
-    float diffX = centerX - (static_cast<float>(width) / 2.0f);
-    float diffY = centerY - (static_cast<float>(height) / 2.0f);
+  m_minY = std::numeric_limits<float>::max();
+  m_maxY = std::numeric_limits<float>::min();
 
-    m_origX -= (int)diffX;
-    m_origY -= (int)diffY;
+  for (auto iter = m_axiom.begin(); iter != m_axiom.end(); ++iter)
+  {
+    float new_x = m_x + m_length * cosf(m_currRot * PI / 180.0f);
+    float new_y = m_y + m_length * sinf(m_currRot * PI / 180.0f);
 
-    return (std::abs(diffX) < 5.0f && std::abs(diffY) < 5.0f);
+    RendererState s;
+    switch (iter->second)
+    {
+      case ActionEnum::DRAW_FORWARD:
+        m_x = new_x;
+        m_y = new_y;
+        break;
+      case ActionEnum::MOVE_FORWARD:
+        m_x = new_x;
+        m_y = new_y;
+        break;
+      case ActionEnum::ROTATE_CW:
+        m_currRot += m_rotate;
+        m_currRot = fmodf(m_currRot, 360.0f);
+        break;
+      case ActionEnum::ROTATE_CCW:
+        m_currRot -= m_rotate;
+        m_currRot = fmodf(m_currRot, 360.0f);
+        break;
+      case ActionEnum::PUSH_STATE:
+        s.X = m_x;
+        s.Y = m_y;
+        s.Rotation = m_currRot;
+        m_stateStack.push(s);
+        break;
+      case ActionEnum::POP_STATE:
+        s = m_stateStack.top();
+        m_stateStack.pop();
+        m_x = s.X;
+        m_y = s.Y;
+        m_currRot = s.Rotation;
+        break;
+      case ActionEnum::NO_ACTION:
+      default:
+        break;
+    }
+
+    if (m_x > m_maxX) m_maxX = m_x;
+    if (m_x < m_minX) m_minX = m_x;
+    if (m_y > m_maxY) m_maxY = m_y;
+    if (m_y < m_minY) m_minY = m_y;
+  }
+
+  float centerX = (m_maxX + m_minX) / 2.0f;
+  float centerY = (m_maxY + m_minY) / 2.0f;
+
+  float diffX = centerX - (static_cast<float>(m_windowWidth) / 2.0f);
+  float diffY = centerY - (static_cast<float>(m_windowHeight) / 2.0f);
+
+  std::cout << "Adjusting origin by (" << diffX << ", " << diffY << ")." << std::endl; 
+
+  m_minX -= (int)diffX;
+  m_minY -= (int)diffY;
+  m_maxX -= (int)diffX;
+  m_maxY -= (int)diffY;
+  m_origX -= (int)diffX;
+  m_origY -= (int)diffY;
 }
 
 bool LSystemRenderer::SaveScreenshot(std::string filepath, int padding)
 {
-  int windowWidth, windowHeight;
-  SDL_GetWindowSize(m_window, &windowWidth, &windowHeight);
-
   unsigned int width = std::abs(m_maxX - m_minX) + (2 * padding);
   unsigned int height = std::abs(m_maxY - m_minY) + (2 * padding);
 
   unsigned int x, y, w, h;
-  if (width > windowWidth)
+  if (width > m_windowWidth)
   {
     x = 0;
-    w = windowWidth;
+    w = m_windowWidth;
   }
   else
   {
@@ -175,10 +193,10 @@ bool LSystemRenderer::SaveScreenshot(std::string filepath, int padding)
     w = width;
   }
   
-  if (height > windowHeight)
+  if (height > m_windowHeight)
   {
     y = 0;
-    h = windowHeight;
+    h = m_windowHeight;
   }
   else
   {
@@ -188,6 +206,8 @@ bool LSystemRenderer::SaveScreenshot(std::string filepath, int padding)
 
   size_t arraySize = w * h;
   unsigned int* pixels = new unsigned int[arraySize];
+
+  std::cout << "Attempting to save region (" << x << ", " << y << ", " << w << ", " << h << ")." << std::endl;
 
   glReadPixels(x, y, w, h, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, pixels);
   GLenum error = glGetError();
@@ -202,6 +222,45 @@ bool LSystemRenderer::SaveScreenshot(std::string filepath, int padding)
   {
     std::cerr << "Creating surface failed: " << SDL_GetError() << std::endl;
     return false;
+  }
+
+  if (sshot->h > 2)
+  {
+    Uint8 *t;
+    Uint8 *a, *b;
+    Uint8 *last;
+    Uint16 pitch;
+
+    /* get a place to store a line */
+    pitch = sshot->pitch;
+    t = (Uint8*)malloc(pitch);
+
+    if (t == NULL) {
+        std::cerr << "Failed while flipping surface." << std::endl;
+        return false;
+    }
+
+    /* get first line; it's about to be trampled */
+    memcpy(t, sshot->pixels,pitch);
+
+    /* now, shuffle the rest so it's almost correct */
+    a = (Uint8*)sshot->pixels;
+    last = a + pitch * (sshot->h - 1);
+    b = last;
+
+    while(a < b) {
+        memcpy(a,b,pitch);
+        a += pitch;
+        memcpy(b,a,pitch);
+        b -= pitch;
+    }
+
+    /* in this shuffled state, the bottom slice is too far down */
+    memmove( b, b+pitch, last-b );
+    /* now we can put back that first row--in the last place */
+    memcpy(last,t,pitch);
+    /* everything is in the right place; close up. */
+    free(t);
   }
   
   int err = SDL_SaveBMP(sshot, filepath.c_str());
@@ -247,99 +306,103 @@ void LSystemRenderer::DrawLine(float x1, float y1, float x2, float y2, float lin
   glEnd();
 }
 
-bool LSystemRenderer::Render(std::vector<Constant> axiom, bool toScreen)
+void LSystemRenderer::SetupGL(bool toScreen)
 {
-  int width, height;
-  SDL_GetWindowSize(m_window, &width, &height);
-  glViewport(0, 0, width, height);
+  glViewport(0, 0, m_windowWidth, m_windowHeight);
 
   glMatrixMode(GL_PROJECTION);
   glLoadIdentity();
-  glOrtho(0, width, 0, height, -1, 1);
+  glOrtho(0, m_windowWidth, 0, m_windowHeight, -1, 1);
 
-  if (toScreen)
+  if (!toScreen)
     glTranslatef(0.5f, 0.5f, 0.0f);
     
   glMatrixMode(GL_MODELVIEW);
 
   glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
-  m_stateStack = std::stack<RendererState>();
+      
+  glClear(GL_COLOR_BUFFER_BIT);
+}
 
+void LSystemRenderer::SetupRender()
+{
   m_x = m_origX;
   m_y = m_origY;
   m_currRot = m_startRot;
+  m_stateStack = std::stack<RendererState>();
+}
 
-  m_minX = std::numeric_limits<float>::max();
-  m_maxX = std::numeric_limits<float>::min();
-
-  m_minY = std::numeric_limits<float>::max();
-  m_maxY = std::numeric_limits<float>::min();
-
-  int color_i = 0;
-  for (auto iter = axiom.begin(); iter != axiom.end(); ++iter)
+void LSystemRenderer::RenderStep(int index)
+{
+  if (m_colorful)
   {
-    if (m_colorful)
-    {
-      m_color.Hue = (float)color_i / (float)axiom.size();
-      
-      RGB rgb = HSV_To_RGB(m_color);
+    m_color.Hue = (float)index / (float)m_axiom.size();
+    
+    Util::RGB rgb = Util::HSV_To_RGB(m_color);
 
-      glColor4f(rgb.Red, rgb.Green, rgb.Blue, 1.0f);
-    }
-
-    float new_x = m_x + m_length * cosf(m_currRot * PI / 180.0f);
-    float new_y = m_y + m_length * sinf(m_currRot * PI / 180.0f);
-
-    RendererState s;
-    switch (iter->second)
-    {
-      case ActionEnum::DRAW_FORWARD:
-        DrawLine(m_x, m_y, new_x, new_y, m_lineWidth);
-        m_x = new_x;
-        m_y = new_y;
-        break;
-      case ActionEnum::MOVE_FORWARD:
-        m_x = new_x;
-        m_y = new_y;
-        break;
-      case ActionEnum::ROTATE_CW:
-        m_currRot += m_rotate;
-        m_currRot = fmodf(m_currRot, 360.0f);
-        break;
-      case ActionEnum::ROTATE_CCW:
-        m_currRot -= m_rotate;
-        m_currRot = fmodf(m_currRot, 360.0f);
-        break;
-      case ActionEnum::PUSH_STATE:
-        s.X = m_x;
-        s.Y = m_y;
-        s.Rotation = m_currRot;
-        m_stateStack.push(s);
-        break;
-      case ActionEnum::POP_STATE:
-        s = m_stateStack.top();
-        m_stateStack.pop();
-        m_x = s.X;
-        m_y = s.Y;
-        m_currRot = s.Rotation;
-        break;
-      case ActionEnum::NO_ACTION:
-      default:
-        break;
-    }
-
-    ++color_i;
-    if (m_x > m_maxX) m_maxX = m_x;
-    if (m_x < m_minX) m_minX = m_x;
-    if (m_y > m_maxY) m_maxY = m_y;
-    if (m_y < m_minY) m_minY = m_y;
+    glColor4f(rgb.Red, rgb.Green, rgb.Blue, 1.0f);
   }
 
-  m_drawn = true;
+  float new_x = m_x + m_length * cosf(m_currRot * PI / 180.0f);
+  float new_y = m_y + m_length * sinf(m_currRot * PI / 180.0f);
 
-  if (m_center)
+  Constant c = m_axiom[index];
+
+  RendererState s;
+  switch (c.second)
   {
-    return CenterOrigin(m_minX, m_maxX, m_minY, m_maxY);
+    case ActionEnum::DRAW_FORWARD:
+      DrawLine(m_x, m_y, new_x, new_y, m_lineWidth);
+      m_x = new_x;
+      m_y = new_y;
+      break;
+    case ActionEnum::MOVE_FORWARD:
+      m_x = new_x;
+      m_y = new_y;
+      break;
+    case ActionEnum::ROTATE_CW:
+      m_currRot += m_rotate;
+      m_currRot = fmodf(m_currRot, 360.0f);
+      break;
+    case ActionEnum::ROTATE_CCW:
+      m_currRot -= m_rotate;
+      m_currRot = fmodf(m_currRot, 360.0f);
+      break;
+    case ActionEnum::PUSH_STATE:
+      s.X = m_x;
+      s.Y = m_y;
+      s.Rotation = m_currRot;
+      m_stateStack.push(s);
+      break;
+    case ActionEnum::POP_STATE:
+      s = m_stateStack.top();
+      m_stateStack.pop();
+      m_x = s.X;
+      m_y = s.Y;
+      m_currRot = s.Rotation;
+      break;
+    case ActionEnum::NO_ACTION:
+    default:
+      break;
+  }
+}
+
+bool LSystemRenderer::RenderNextSteps(int steps)
+{
+  int endIndex = m_drawIndex + steps;
+  for (m_drawIndex = 0; m_drawIndex < std::min((int)m_axiom.size(), endIndex); ++m_drawIndex)
+  {
+    RenderStep(m_drawIndex);
+  }
+
+  return (m_drawIndex >= m_axiom.size());
+}
+
+bool LSystemRenderer::Render()
+{
+  for (m_drawIndex = 0; m_drawIndex < m_axiom.size(); ++m_drawIndex)
+  {
+    RenderStep(m_drawIndex);
   }
 
   return true;
