@@ -3,6 +3,7 @@
 #include "glew.h"
 #include "GL/GL.h"
 #include "SDL_opengl.h"
+#include "savepng.h"
 #include <cmath>
 #include <iostream>
 #include <limits>
@@ -209,7 +210,7 @@ bool LSystemRenderer::SaveScreenshot(std::string filepath, int padding)
 
   std::cout << "Attempting to save region (" << x << ", " << y << ", " << w << ", " << h << ")." << std::endl;
 
-  glReadPixels(x, y, w, h, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, pixels);
+  glReadPixels(x, y, w, h, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV, pixels);
   GLenum error = glGetError();
   if (error != GL_NO_ERROR)
   {
@@ -217,7 +218,7 @@ bool LSystemRenderer::SaveScreenshot(std::string filepath, int padding)
     return false;
   }
 
-  SDL_Surface* sshot = SDL_CreateRGBSurfaceFrom(pixels, w, h, 8*4, w*4, 0xff000000, 0x00ff0000, 0x0000ff00, 0x000000ff);
+  SDL_Surface* sshot = SDL_CreateRGBSurfaceFrom(pixels, w, h, 8*4, w*4, 0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000);
   if (sshot == NULL)
   {
     std::cerr << "Creating surface failed: " << SDL_GetError() << std::endl;
@@ -262,11 +263,11 @@ bool LSystemRenderer::SaveScreenshot(std::string filepath, int padding)
     /* everything is in the right place; close up. */
     free(t);
   }
-  
-  int err = SDL_SaveBMP(sshot, filepath.c_str());
+
+  int err = SDL_SavePNG(sshot, filepath.c_str());
   if (err != 0)
   {
-    std::cerr << "Saving BMP failed: " << SDL_GetError() << std::endl;
+    std::cerr << "Saving PNG failed: " << SDL_GetError() << std::endl;
     return false;
   }
 

@@ -203,10 +203,10 @@ bool InitSDL(SDL_Window *&window, SDL_GLContext& gl, const ConfigurationType& co
 
 int main(int argc, char** argv)
 {
-  RedirectLog();
+  // RedirectLog();
 
   std::string iniFile = "example.ini";
-  std::string outputFile = "lsystem.bmp";
+  std::string outputFile = "lsystem.png";
   std::string animationFolder = "./animation/";
   bool saveFinal = false;
   bool allFrames = false;
@@ -327,7 +327,7 @@ int main(int argc, char** argv)
 
         if (allFrames)
         {
-          std::filesystem::path filename(std::to_string(frame) + ".bmp");
+          std::filesystem::path filename(std::to_string(frame) + ".png");
           std::filesystem::path filepath = animationPath / filename;
           SDL_GL_SwapWindow(window);
           LS_Renderer.SaveScreenshot(filepath.string(), config.General.Padding);
