@@ -26,7 +26,7 @@ bool LSystem::SetAxiom(std::string axiom)
 
 std::vector<Constant> LSystem::GenerateNthAxiom(unsigned int n)
 {
-  if (n == 1)
+  if (n == 0)
   {
     return m_axiom;
   }

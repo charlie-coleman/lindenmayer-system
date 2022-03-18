@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cmath>
+#include <filesystem>
 
 #define SDL_MAIN_HANDLED
 
@@ -10,6 +11,36 @@
 #include "INIReader.h"
 #include "LSystem.h"
 #include "LSystemRenderer.h"
+
+struct WindowConfigType
+{
+  bool Display;
+  int Width;
+  int Height;
+  int Framerate;
+};
+
+struct GeneralConfigType
+{
+  int Level;
+  int Length;
+  int LineWidth;
+  bool Animate;
+  float AnimateTime;
+  float EndFrameTime;
+  float Angle;
+  float StartingRotation;
+  bool Center;
+  bool Colorful;
+  float Saturation;
+  int Padding;
+};
+
+struct ConfigurationType
+{
+  WindowConfigType Window;
+  GeneralConfigType General;
+};
 
 SDL_bool HandleEvents()
 {
@@ -40,77 +71,37 @@ void RedirectLog()
   freopen("lsystem.log", "w", stderr);
 }
 
-int main(int argc, char** argv)
+void ParseWindowConfiguration(INIReader iniFile, ConfigurationType& config)
 {
-  RedirectLog();
+  config.Window.Width     = iniFile.GetInteger("window", "width", 1600);
+  config.Window.Height    = iniFile.GetInteger("window", "height", 900);
+  config.Window.Framerate = iniFile.GetInteger("window", "framerate", 60);
+  config.Window.Display   = iniFile.GetBoolean("window", "display", true);
+}
 
-  std::string ini_file = "example.ini";
-  std::string output_file = "lsystem.bmp";
-  bool save = false;
+void ParseGeneralConfiguration(INIReader iniFile, ConfigurationType& config)
+{
+  config.General.Level            = iniFile.GetInteger("general", "level", 3);
+  config.General.Length           = iniFile.GetInteger("general", "length", 5);
+  config.General.Angle            = iniFile.GetFloat("general", "angle", 90.0f);
+  config.General.Animate          = iniFile.GetBoolean("general", "animate", false);
+  config.General.AnimateTime      = iniFile.GetFloat("general", "animatetime", 12.5);
+  config.General.EndFrameTime     = iniFile.GetFloat("general", "endframetime", 2.5);
+  config.General.StartingRotation = iniFile.GetFloat("general", "startingrotation", 0.0f);
+  config.General.LineWidth        = iniFile.GetFloat("general", "linewidth", 1.0f);
+  config.General.Center           = iniFile.GetBoolean("general", "center", true);
+  config.General.Colorful         = iniFile.GetBoolean("general", "colorful", false);
+  config.General.Saturation       = iniFile.GetFloat("general", "saturation", 0.6f);
+  config.General.Padding          = iniFile.GetInteger("general", "padding", 20);
+}
 
-  int i = 0;
-  do
-  {
-    std::string opt(argv[i]);
-  
-    if (opt == "-c" || opt == "--config")
-    {
-      if (i < argc-1)
-      {
-        ini_file = std::string(argv[i+1]);
-        i += 2;
-      }
-      else
-        ++i;
-    }
-    else if (opt == "-o" || opt == "--output")
-    {
-      save = true;
-      if (i < argc-1)
-      {
-        output_file = std::string(argv[i+1]);
-        i += 2;
-      }
-      else
-        ++i;
-    }
-    else
-    {
-      ++i;
-    }
-  } while (i < argc);
-
-  INIReader reader(ini_file);
-  
-  LSystem lSystem;
-
-  ///
-  /// WINDOW
-  ///
-  int window_width  = reader.GetInteger("window", "width", 1600);
-  int window_height = reader.GetInteger("window", "height", 900);
-  bool display      = reader.GetBoolean("window", "display", true);
-  
-  ///
-  /// GENERAL
-  ///
-  int level              = reader.GetInteger("general", "level", 3);
-  int length             = reader.GetInteger("general", "length", 5);
-  float angle            = reader.GetFloat("general", "angle", 90.0f);
-  float startingRotation = reader.GetFloat("general", "startingrotation", 0.0f);
-  float linewidth        = reader.GetFloat("general", "linewidth", 1.0f);
-  bool center            = reader.GetBoolean("general", "center", true);
-  bool colorful          = reader.GetBoolean("general", "colorful", false);
-  float saturation       = reader.GetFloat("general", "saturation", 0.6f);
-
-  ///
-  /// CONSTANTS
-  ///
-  std::string constants = reader.Get("lsystem", "constants", "");
+void ParseSystemConfiguration(INIReader iniFile, LSystem& lSystem)
+{
+  std::string constants = iniFile.Get("lsystem", "constants", "");
   for (int i = 0; i < constants.size(); ++i)
   {
     std::string actionName = "action" + std::to_string(i);
-    std::string action = reader.Get("lsystem", actionName, "NO_ACTION");
+    std::string action = iniFile.Get("lsystem", actionName, "NO_ACTION");
 
     if (action == "MOVE_FORWARD")
     {
@@ -142,112 +133,278 @@ int main(int argc, char** argv)
     }
   }
 
-  lSystem.SetAxiom(reader.Get("lsystem", "axiom", ""));
+  lSystem.SetAxiom(iniFile.Get("lsystem", "axiom", ""));
 
   for (int i = 0; i < constants.size(); ++i)
   {
     std::string ruleName = "rule" + std::to_string(i);
-    std::string rule = reader.Get("lsystem", ruleName, std::string(1, constants[i]));
+    std::string rule = iniFile.Get("lsystem", ruleName, std::string(1, constants[i]));
 
     lSystem.SetConstantRule(constants[i], rule);
   }
+}
+
+bool InitSDL(SDL_Window *&window, SDL_GLContext& gl, const ConfigurationType& config)
+{
+  int status;
+
+  status = SDL_Init(SDL_INIT_VIDEO);
+  if (status != 0)
+  {
+    std::cerr << "Failed to init video. Error: " << SDL_GetError() << std::endl;
+    return false; 
+  }
+
+  Uint32 flags = SDL_WINDOW_OPENGL;
+  if (!config.Window.Display)
+    flags |= SDL_WINDOW_HIDDEN;
+    
+  std::cout << "Creating window of dimensions " << config.Window.Width << "x" << config.Window.Height << std::endl;
+  window = SDL_CreateWindow("Lindenmayer System", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, config.Window.Width, config.Window.Height, flags);
+  if (window == NULL)
+  {
+    std::cerr << "Failed to create window. Error: " << SDL_GetError() << std::endl;
+    return false;
+  }
+
+  gl = SDL_GL_CreateContext(window);
+  if (gl == NULL)
+  {
+    std::cerr << "Failed to create GL context. Error: " << SDL_GetError() << std::endl;
+    return false;
+  }
+
+  status = SDL_GL_MakeCurrent(window, gl);
+  if (status != 0)
+  {
+    std::cerr << "Failed to make GL context current. Error: " << SDL_GetError() << std::endl;
+    return false;
+  }
+
+  status = SDL_GL_SetSwapInterval(1);
+  if (status != 0)
+  {
+    std::cerr << "Failed to set swap interval. Error: " << SDL_GetError() << std::endl;
+    return false;
+  }
+
+  SDL_bool success = SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
+  if (!success)
+  {
+    std::cerr << "Failed to set render scale quality. Error: " << SDL_GetError() << std::endl;
+  }
+
+  status = SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+  if (status != 0)
+  {
+    std::cerr << "Failed to enable double buffer. Error: " << SDL_GetError() << std::endl;
+  }
+
+  return true;
+}
+
+int main(int argc, char** argv)
+{
+  // RedirectLog();
+
+  std::string iniFile = "example.ini";
+  std::string outputFile = "lsystem.png";
+  std::string animationFolder = "./animation/";
+  bool saveFinal = false;
+  bool allFrames = false;
+
+  int i = 0;
+  do
+  {
+    std::string opt(argv[i]);
+  
+    if (opt == "-c" || opt == "--config")
+    {
+      if (i < argc-1)
+      {
+        iniFile = std::string(argv[i+1]);
+        i += 2;
+      }
+      else
+        ++i;
+    }
+    else if (opt == "-o" || opt == "--output")
+    {
+      saveFinal = true;
+      if (i < argc-1)
+      {
+        outputFile = std::string(argv[i+1]);
+        i += 2;
+      }
+      else
+        ++i;
+    }
+    else if (opt == "-a" || opt == "--animation")
+    {
+      saveFinal = true;
+      allFrames = true;
+      if (i < argc-1)
+      {
+        animationFolder = std::string(argv[i+1]);
+        i += 2;
+      }
+      else
+        ++i;
+    }
+    else
+      ++i;
+  } while (i < argc);
+
+  std::cout << "Getting config from " << iniFile << "." << std::endl;
+  if (saveFinal) std::cout << "Saving image to " << outputFile << "." << std::endl;
+
+  INIReader reader(iniFile);
+  LSystem lSystem;
+  ConfigurationType config;
+
+  ParseWindowConfiguration(reader, config);
+  ParseGeneralConfiguration(reader, config);
+  ParseSystemConfiguration(reader, lSystem);
 
   lSystem.Print();
 
-  std::vector<Constant> axiom = lSystem.GenerateNthAxiom(level);
+  std::vector<Constant> axiom = lSystem.GenerateNthAxiom(config.General.Level);
+  
+  int stepsPerFrame = axiom.size();
+  if (config.General.AnimateTime > 0.0f)
+  {
+    stepsPerFrame = (int)std::round(axiom.size() / (config.General.AnimateTime * config.Window.Framerate));
+    stepsPerFrame = std::max(stepsPerFrame, 1);
+  }
+  int endFrames = (int)std::round(config.General.EndFrameTime * config.Window.Framerate);
 
-  std::cout << std::endl << level << " generation axiom. Length=" << axiom.size() << std::endl;
+  std::cout << std::endl << config.General.Level << " generation axiom. Length=" << axiom.size() << ". Rendering " << stepsPerFrame << " steps per frame" << std::endl;
+
+  SDL_Window* window;
+  SDL_GLContext gl;
+  bool success = InitSDL(window, gl, config);
+
+  if (!success)
+  {
+    exit(-1);
+  }
 
   bool saved = false;
+  bool doneRendering = false;
+  SDL_bool done = SDL_FALSE;
 
-  if (SDL_Init(SDL_INIT_VIDEO) == 0)
+  glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+  glClear(GL_COLOR_BUFFER_BIT);
+
+  LSystemRenderer LS_Renderer(window, axiom, config.General.Length, config.General.LineWidth, config.General.Angle, config.General.StartingRotation);
+
+  LS_Renderer.SetCenter(config.General.Center);
+  LS_Renderer.SetColorful(config.General.Colorful);
+  LS_Renderer.SetSaturation(config.General.Saturation);
+
+  if (config.General.Center) LS_Renderer.Center();
+
+  LS_Renderer.SetupGL(config.Window.Display);
+  
+  std::filesystem::path animationPath(animationFolder);
+
+  if (allFrames)
   {
-    Uint32 flags = SDL_WINDOW_OPENGL;
-    if (!display)
-      flags |= SDL_WINDOW_HIDDEN;
+    std::filesystem::create_directory(animationPath);
+  }
 
-    std::cout << "Creating window of dimensions " << window_width << "x" << window_height << std::endl;
-    SDL_Window* window = SDL_CreateWindow("Lindenmayer System", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, window_width, window_height, flags);
-    bool doneRendering = false;
+  if (saveFinal)
+  {
+    std::filesystem::path outputPath(outputFile);
+    std::filesystem::create_directories(outputPath.parent_path());
+  }
 
-    if (window != NULL)
+  int frame = 0;
+  while(!done)
+  {
+    bool finishedRenderingThisFrame = false;
+    Uint64 start = SDL_GetPerformanceCounter();
+
+    if (!doneRendering)
     {
-      SDL_bool done = SDL_FALSE;
-
-      SDL_GLContext gl = SDL_GL_CreateContext(window);
-
-      glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+      glDrawBuffer(GL_BACK);
       glClear(GL_COLOR_BUFFER_BIT);
+  
+      LS_Renderer.SetupRender();
 
-      LSystemRenderer LS_Renderer(window, length, linewidth, angle, startingRotation);
-
-      LS_Renderer.SetCenter(center);
-      LS_Renderer.SetColorful(colorful);
-
-      SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
-
-      while(!done)
+      if (config.General.Animate)
       {
-        Uint64 start = SDL_GetPerformanceCounter();
+        doneRendering = finishedRenderingThisFrame = LS_Renderer.RenderNextSteps(stepsPerFrame);
+        ++frame;
+
+        if (allFrames)
+        {
+          std::filesystem::path filename(std::to_string(frame) + ".png");
+          std::filesystem::path filepath = animationPath / filename;
+          SDL_GL_SwapWindow(window);
+          LS_Renderer.SaveScreenshot(filepath.string(), config.General.Padding);
+          SDL_GL_SwapWindow(window);
+        }
+      }
+      else
+      {
+        doneRendering = finishedRenderingThisFrame = LS_Renderer.Render();
+      }
+
+      glFlush();
+      glFinish();
+      SDL_GL_SwapWindow(window);
+    }
     
-        if (!doneRendering)
-        {
-          glClear(GL_COLOR_BUFFER_BIT);
-
-          doneRendering = LS_Renderer.Render(axiom, display);
-
-          glFlush();
-          SDL_GL_SwapWindow(window);
-        }
-
-        if (save && doneRendering && !saved)
-        {
-          SDL_GL_SwapWindow(window);
-          LS_Renderer.SaveScreenshot(output_file);
-          saved = true;
-          SDL_GL_SwapWindow(window);
-        }
-
-        done = HandleEvents();
-
-        if (!display)
-        {
-          if (save && saved && doneRendering)
-            done = SDL_TRUE;
-
-          if(!save && doneRendering)
-            done = SDL_TRUE;
-        }
-
-        Uint64 end = SDL_GetPerformanceCounter();
-        float elapsedMS = (end - start) / (float)SDL_GetPerformanceFrequency() * 1000.0f;
-        float delay = std::max(std::floor(16.6667f - elapsedMS), 0.0f);
-        SDL_Delay(delay);
-      }
-
-      if (gl)
-      {
-        SDL_GL_DeleteContext(gl);
-      }
-
-      if (window)
-      {
-        SDL_DestroyWindow(window);
-      }
-    }
-    else
+    if (doneRendering && !finishedRenderingThisFrame && !saved && (saveFinal || allFrames))
     {
-      std::cerr << "Failed to create SDL window. Error: " << SDL_GetError() << std::endl;
-      return -1;
+      std::string filepath = outputFile;
+      if (allFrames)
+      {
+        ++frame;
+        --endFrames;
+        std::filesystem::path filename(std::to_string(frame) + ".png");
+        std::filesystem::path p = animationPath / filename;
+        filepath = p.string();
+        if (endFrames == 0)
+        {
+          saved = true;
+        }
+      }
+      else
+      {
+        saved = true;
+      }
+
+      SDL_GL_SwapWindow(window);
+      LS_Renderer.SaveScreenshot(filepath, config.General.Padding);
+      SDL_GL_SwapWindow(window);
+
+      if (saved)
+      {
+        std::cout << "Saved resultant curve to PNG." << std::endl;
+      }
     }
 
-    SDL_Quit();
-  }
-  else
-  {
-    std::cerr << "Failed to initialize SDL." << std::endl;
-    return -1;
+    done = HandleEvents();
+
+    if (!config.Window.Display)
+    {
+      if (saveFinal && saved && doneRendering)
+        done = SDL_TRUE;
+
+      if(!saveFinal && doneRendering)
+        done = SDL_TRUE;
+    }
+
+    Uint64 end = SDL_GetPerformanceCounter();
+    float elapsedMS = (end - start) / (float)SDL_GetPerformanceFrequency() * 1000.0f;
+    float delay = std::max(std::floor((1000.0f / config.Window.Framerate) - elapsedMS), 0.0f);
+    SDL_Delay(delay);
   }
 
-  return 0;
+  if (gl) SDL_GL_DeleteContext(gl);
+  if (window) SDL_DestroyWindow(window);
+
+  exit(0);
 }

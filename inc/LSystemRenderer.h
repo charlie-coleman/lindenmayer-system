@@ -2,8 +2,9 @@
 #define _LSYSTEM_RENDERER_H_
 
 #include "LSystem.h"
-#include "SDL.h"
+#include "Util.h"
 
+#include "SDL.h"
 #include <memory>
 #include <stack>
 
@@ -16,28 +17,18 @@ struct RendererState
   float Rotation;
 };
 
-struct HSV
-{
-  float Hue;
-  float Saturation;
-  float Value;
-};
-
-struct RGB
-{
-  float Red;
-  float Green;
-  float Blue;
-};
-
 class LSystemRenderer
 {
 public:
-  LSystemRenderer(SDL_Window* window);
-  LSystemRenderer(SDL_Window* window, float length, float lineWidth, float rotate, float startRotate);
+  LSystemRenderer(SDL_Window* window, std::vector<Constant>& axiom);
+  LSystemRenderer(SDL_Window* window, std::vector<Constant>& axiom, float length, float lineWidth, float rotate, float startRotate);
   ~LSystemRenderer();
 
-  bool Render(std::vector<Constant> axiom, bool toScreen = true);
+  void Center();
+  void SetupGL(bool toScreen = true);
+  void SetupRender();
+  bool Render();
+  bool RenderNextSteps(int steps = 1);
 
   void SetLength(float length);
   void SetLineWidth(float linewidth);
@@ -49,25 +40,21 @@ public:
   void SetSaturation(float saturation);
   void SetOrigin(float x, float y);
 
-  bool SaveScreenshot(std::string filename, int padding = 20);
+  void SetAxiom(std::vector<Constant>& axiom);
+
+  bool SaveScreenshot(const std::string& filename, int padding = 20);
 
 private:
-  void DrawLine(float x1, float y1, float x2, float y2, float lineWidth);
-
-  bool CenterOrigin(float minX, float maxX, float minY, float maxY);
-  RGB HSV_To_RGB(HSV hsv);
+  void RenderStep(int index);
+  void DrawLine(float x1, float y1, float x2, float y2);
 
   SDL_Window* m_window;
-
-  bool m_center;
-  bool m_drawn;
-
-  bool m_colorful;
-  float m_saturation;
 
   float m_length;
   float m_lineWidth;
   float m_rotate;
+  bool  m_center;
+  bool  m_colorful;
 
   float m_startRot;
   float m_origX;
@@ -80,7 +67,14 @@ private:
   float m_x;
   float m_y;
 
-  HSV m_color;
+  int m_windowWidth;
+  int m_windowHeight;
+
+  int m_drawIndex;
+
+  std::vector<Constant>& m_axiom;
+
+  Util::HSV m_color;
 
   std::stack<RendererState> m_stateStack;
 };
