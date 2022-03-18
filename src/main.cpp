@@ -27,6 +27,7 @@ struct GeneralConfigType
   int LineWidth;
   bool Animate;
   float AnimateTime;
+  float EndFrameTime;
   float Angle;
   float StartingRotation;
   bool Center;
@@ -84,7 +85,8 @@ void ParseGeneralConfiguration(INIReader iniFile, ConfigurationType& config)
   config.General.Length           = iniFile.GetInteger("general", "length", 5);
   config.General.Angle            = iniFile.GetFloat("general", "angle", 90.0f);
   config.General.Animate          = iniFile.GetBoolean("general", "animate", false);
-  config.General.AnimateTime      = iniFile.GetFloat("general", "animatetime", 15.0);
+  config.General.AnimateTime      = iniFile.GetFloat("general", "animatetime", 12.5);
+  config.General.EndFrameTime     = iniFile.GetFloat("general", "endframetime", 2.5);
   config.General.StartingRotation = iniFile.GetFloat("general", "startingrotation", 0.0f);
   config.General.LineWidth        = iniFile.GetFloat("general", "linewidth", 1.0f);
   config.General.Center           = iniFile.GetBoolean("general", "center", true);
@@ -274,6 +276,7 @@ int main(int argc, char** argv)
     stepsPerFrame = (int)std::round(axiom.size() / (config.General.AnimateTime * config.Window.Framerate));
     stepsPerFrame = std::max(stepsPerFrame, 1);
   }
+  int endFrames = (int)std::round(config.General.EndFrameTime * config.Window.Framerate);
 
   std::cout << std::endl << config.General.Level << " generation axiom. Length=" << axiom.size() << ". Rendering " << stepsPerFrame << " steps per frame" << std::endl;
 
@@ -302,10 +305,19 @@ int main(int argc, char** argv)
   if (config.General.Center) LS_Renderer.Center();
 
   LS_Renderer.SetupGL(config.Window.Display);
-
+  
   std::filesystem::path animationPath(animationFolder);
 
-  std::filesystem::create_directory(animationPath);
+  if (allFrames)
+  {
+    std::filesystem::create_directory(animationPath);
+  }
+
+  if (saveFinal)
+  {
+    std::filesystem::path outputPath(outputFile);
+    std::filesystem::create_directories(outputPath.parent_path());
+  }
 
   int frame = 0;
   while(!done)
@@ -350,15 +362,28 @@ int main(int argc, char** argv)
       if (allFrames)
       {
         ++frame;
-        std::filesystem::path filename(std::to_string(frame) + ".bmp");
+        --endFrames;
+        std::filesystem::path filename(std::to_string(frame) + ".png");
         std::filesystem::path p = animationPath / filename;
         filepath = p.string();
+        if (endFrames == 0)
+        {
+          saved = true;
+        }
+      }
+      else
+      {
+        saved = true;
       }
 
       SDL_GL_SwapWindow(window);
       LS_Renderer.SaveScreenshot(filepath, config.General.Padding);
-      saved = true;
       SDL_GL_SwapWindow(window);
+
+      if (saved)
+      {
+        std::cout << "Saved resultant curve to PNG." << std::endl;
+      }
     }
 
     done = HandleEvents();

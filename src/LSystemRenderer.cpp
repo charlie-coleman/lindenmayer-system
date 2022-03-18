@@ -167,6 +167,14 @@ void LSystemRenderer::Center()
   float diffX = centerX - (static_cast<float>(m_windowWidth) / 2.0f);
   float diffY = centerY - (static_cast<float>(m_windowHeight) / 2.0f);
 
+  int width = std::abs(m_maxX - m_minX);
+  int height = std::abs(m_maxY - m_minY);
+  std::cout << "Resultant curve is " << width << " pixels by " << height << " pixels." << std::endl;
+  if (width > m_windowWidth || height > m_windowHeight)
+  {
+    std::cout << "Warning: Resultant curve is larger than current window size and will be partially obscured." << std::endl;
+  }
+
   std::cout << "Adjusting origin by (" << diffX << ", " << diffY << ")." << std::endl; 
 
   m_minX -= (int)diffX;
@@ -177,7 +185,7 @@ void LSystemRenderer::Center()
   m_origY -= (int)diffY;
 }
 
-bool LSystemRenderer::SaveScreenshot(std::string filepath, int padding)
+bool LSystemRenderer::SaveScreenshot(const std::string& filepath, int padding)
 {
   unsigned int width = std::abs(m_maxX - m_minX) + (2 * padding);
   unsigned int height = std::abs(m_maxY - m_minY) + (2 * padding);
@@ -207,8 +215,6 @@ bool LSystemRenderer::SaveScreenshot(std::string filepath, int padding)
 
   size_t arraySize = w * h;
   unsigned int* pixels = new unsigned int[arraySize];
-
-  std::cout << "Attempting to save region (" << x << ", " << y << ", " << w << ", " << h << ")." << std::endl;
 
   glReadPixels(x, y, w, h, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV, pixels);
   GLenum error = glGetError();
@@ -277,33 +283,33 @@ bool LSystemRenderer::SaveScreenshot(std::string filepath, int padding)
   return true;
 }
 
-void LSystemRenderer::DrawLine(float x1, float y1, float x2, float y2, float lineWidth)
+void LSystemRenderer::DrawLine(float x1, float y1, float x2, float y2)
 {
   GLfloat lineWidthRange[2] = {0.0f, 0.0f};
   glGetFloatv(GL_ALIASED_LINE_WIDTH_RANGE, lineWidthRange);
 
-  if (lineWidth > lineWidthRange[1])
+  if (m_lineWidth > lineWidthRange[1])
   {
-    std::cerr << "Line width supplied (" << lineWidth << ") is outside supported range. Changing to " << lineWidthRange[1] << std::endl;
-    lineWidth = lineWidthRange[1];
+    std::cerr << "Line width supplied (" << m_lineWidth << ") is outside supported range. Changing to " << lineWidthRange[1] << std::endl;
+    m_lineWidth = lineWidthRange[1];
   }
-  else if (lineWidth < lineWidthRange[0])
+  else if (m_lineWidth < lineWidthRange[0])
   {
-    std::cerr << "Line width supplied (" << lineWidth << ") is outside supported range. Changing to " << lineWidthRange[0] << std::endl;
-    lineWidth = lineWidthRange[0];
+    std::cerr << "Line width supplied (" << m_lineWidth << ") is outside supported range. Changing to " << lineWidthRange[0] << std::endl;
+    m_lineWidth = lineWidthRange[0];
   }
 
-  glLineWidth(lineWidth);
-  glPointSize(lineWidth);
+  glLineWidth(m_lineWidth);
+  glPointSize(m_lineWidth);
 
   glBegin(GL_LINES);
-  glVertex2f(x1, y1);
-  glVertex2f(x2, y2);
+  glVertex2i(x1, y1);
+  glVertex2i(x2, y2);
   glEnd();
 
   glBegin(GL_POINTS);
-  glVertex2f(x1, y1);
-  glVertex2f(x2, y2);
+  glVertex2i(x1, y1);
+  glVertex2i(x2, y2);
   glEnd();
 }
 
@@ -315,8 +321,7 @@ void LSystemRenderer::SetupGL(bool toScreen)
   glLoadIdentity();
   glOrtho(0, m_windowWidth, 0, m_windowHeight, -1, 1);
 
-  if (!toScreen)
-    glTranslatef(0.5f, 0.5f, 0.0f);
+  glTranslatef(0.375f, 0.375f, 0.0f);
     
   glMatrixMode(GL_MODELVIEW);
 
@@ -353,7 +358,7 @@ void LSystemRenderer::RenderStep(int index)
   switch (c.second)
   {
     case ActionEnum::DRAW_FORWARD:
-      DrawLine(m_x, m_y, new_x, new_y, m_lineWidth);
+      DrawLine(m_x, m_y, new_x, new_y);
       m_x = new_x;
       m_y = new_y;
       break;

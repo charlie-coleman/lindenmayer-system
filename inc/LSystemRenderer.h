@@ -42,11 +42,11 @@ public:
 
   void SetAxiom(std::vector<Constant>& axiom);
 
-  bool SaveScreenshot(std::string filename, int padding = 20);
+  bool SaveScreenshot(const std::string& filename, int padding = 20);
 
 private:
   void RenderStep(int index);
-  void DrawLine(float x1, float y1, float x2, float y2, float lineWidth);
+  void DrawLine(float x1, float y1, float x2, float y2);
 
   SDL_Window* m_window;
 
