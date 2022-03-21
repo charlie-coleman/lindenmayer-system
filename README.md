@@ -8,7 +8,7 @@ Included is an example.ini configuration file. An ini must be provided that defi
 
 ### Synopsis
 
-`./lsystem.exe [-c inipath] [-o [bmppath]]`
+`./lsystem.exe [-c inipath] [-o [pngpath]]`
 
 ### Description
 
@@ -16,8 +16,12 @@ Included is an example.ini configuration file. An ini must be provided that defi
 
 Use *inipath* config file instead of example.ini (default)
 
-**-o,--output [*bmppath*]**
+**-o,--output [*pngpath*]**
 
-Save generated image to either *bmppath* or to lsystem.bmp (default)
+Save generated image to either *pngpath* or to lsystem.png (default)
 
+**-a,--animation [*pngdir*]**
 
+Save all frames of animation to the *pngdir* or ./animation/ (default). The PNG files will be numbered sequentially.
+
+![Sample image of a 14th generation dragon curve](sample.png)
