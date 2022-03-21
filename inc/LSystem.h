@@ -3,8 +3,10 @@
 
 #include <string>
 #include <vector>
-#include <queue>
-#include <map>
+#include <unordered_map>
+#include <random>
+
+#include "ConfigParser.h"
 
 enum class ActionEnum
 {
@@ -18,7 +20,48 @@ enum class ActionEnum
   SIZE_OF_CONSTANT_ACTION
 };
 
-typedef std::pair<char, ActionEnum> Constant;
+struct LConstant
+{
+  char Name;
+  ActionEnum Action;
+
+  LConstant(char name, ActionEnum act)
+  {
+    Name = name;
+    Action = act;
+  }
+
+  bool operator==(const LConstant& c) const
+  {
+    return (c.Name == Name) && (c.Action == Action);
+  }
+};
+
+namespace std
+{
+  template <>
+  struct hash<LConstant>
+  {
+    std::size_t operator()(const LConstant& c) const
+    {
+      using std::hash;
+
+      return (hash<char>()(c.Name) ^ (hash<int>()((int)c.Action) << 1));
+    }
+  };
+};
+
+struct Rule
+{
+  float Weight;
+  std::vector<LConstant> Expansion;
+
+  Rule(float weight, std::vector<LConstant> exp)
+  {
+    Weight = weight;
+    Expansion = exp;
+  }
+};
 
 class LSystem
 {
@@ -26,21 +69,25 @@ public:
   LSystem();
   ~LSystem();
 
-  void AddConstant(char value, ActionEnum action);
-  
-  bool SetAxiom(std::string axiom);
-  bool SetConstantRule(char value, std::string rule);
+  void Configure(SystemConfigType& config);
 
-  std::vector<Constant> GenerateNthAxiom(unsigned int n);
+  void AddConstant(char value, ActionEnum action);
+  bool SetAxiom(std::string axiom);
+  bool SetConstantRule(char value, float weight, std::string rule);
+
+  std::vector<LConstant> GenerateNthAxiom(unsigned int n);
 
   void Print();
 
 private:
-  bool SplitStringIntoConstants(std::string input, std::vector<Constant>& outputVec);
+  bool SplitStringIntoConstants(std::string input, std::vector<LConstant>& outputVec);
 
-  std::vector<Constant> m_axiom;
-  std::vector<Constant> m_constants;
-  std::map<Constant, std::vector<Constant>> m_constantRules;
+  std::mt19937 m_generator;
+  std::uniform_real_distribution<float> m_distribution;
+
+  std::vector<LConstant> m_axiom;
+  std::vector<LConstant> m_constants;
+  std::unordered_map<LConstant, std::vector<Rule>> m_constantRules;
 };
 
 #endif

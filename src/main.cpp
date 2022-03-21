@@ -11,36 +11,7 @@
 #include "INIReader.h"
 #include "LSystem.h"
 #include "LSystemRenderer.h"
-
-struct WindowConfigType
-{
-  bool Display;
-  int Width;
-  int Height;
-  int Framerate;
-};
-
-struct GeneralConfigType
-{
-  int Level;
-  int Length;
-  int LineWidth;
-  bool Animate;
-  float AnimateTime;
-  float EndFrameTime;
-  float Angle;
-  float StartingRotation;
-  bool Center;
-  bool Colorful;
-  float Saturation;
-  int Padding;
-};
-
-struct ConfigurationType
-{
-  WindowConfigType Window;
-  GeneralConfigType General;
-};
+#include "ConfigParser.h"
 
 SDL_bool HandleEvents()
 {
@@ -69,79 +40,6 @@ void RedirectLog()
 {
   freopen("lsystem.log", "w", stdout);
   freopen("lsystem.log", "w", stderr);
-}
-
-void ParseWindowConfiguration(INIReader iniFile, ConfigurationType& config)
-{
-  config.Window.Width     = iniFile.GetInteger("window", "width", 1600);
-  config.Window.Height    = iniFile.GetInteger("window", "height", 900);
-  config.Window.Framerate = iniFile.GetInteger("window", "framerate", 60);
-  config.Window.Display   = iniFile.GetBoolean("window", "display", true);
-}
-
-void ParseGeneralConfiguration(INIReader iniFile, ConfigurationType& config)
-{
-  config.General.Level            = iniFile.GetInteger("general", "level", 3);
-  config.General.Length           = iniFile.GetInteger("general", "length", 5);
-  config.General.Angle            = iniFile.GetFloat("general", "angle", 90.0f);
-  config.General.Animate          = iniFile.GetBoolean("general", "animate", false);
-  config.General.AnimateTime      = iniFile.GetFloat("general", "animatetime", 12.5);
-  config.General.EndFrameTime     = iniFile.GetFloat("general", "endframetime", 2.5);
-  config.General.StartingRotation = iniFile.GetFloat("general", "startingrotation", 0.0f);
-  config.General.LineWidth        = iniFile.GetFloat("general", "linewidth", 1.0f);
-  config.General.Center           = iniFile.GetBoolean("general", "center", true);
-  config.General.Colorful         = iniFile.GetBoolean("general", "colorful", false);
-  config.General.Saturation       = iniFile.GetFloat("general", "saturation", 0.6f);
-  config.General.Padding          = iniFile.GetInteger("general", "padding", 20);
-}
-
-void ParseSystemConfiguration(INIReader iniFile, LSystem& lSystem)
-{
-  std::string constants = iniFile.Get("lsystem", "constants", "");
-  for (int i = 0; i < constants.size(); ++i)
-  {
-    std::string actionName = "action" + std::to_string(i);
-    std::string action = iniFile.Get("lsystem", actionName, "NO_ACTION");
-
-    if (action == "MOVE_FORWARD")
-    {
-      lSystem.AddConstant(constants[i], ActionEnum::MOVE_FORWARD);
-    }
-    else if (action == "DRAW_FORWARD")
-    {
-      lSystem.AddConstant(constants[i], ActionEnum::DRAW_FORWARD);
-    }
-    else if (action == "ROTATE_CW")
-    {
-      lSystem.AddConstant(constants[i], ActionEnum::ROTATE_CW);
-    }
-    else if (action == "ROTATE_CCW")
-    {
-      lSystem.AddConstant(constants[i], ActionEnum::ROTATE_CCW);
-    }
-    else if (action == "PUSH_STATE")
-    {
-      lSystem.AddConstant(constants[i], ActionEnum::PUSH_STATE);
-    }
-    else if (action == "POP_STATE")
-    {
-      lSystem.AddConstant(constants[i], ActionEnum::POP_STATE );
-    }
-    else
-    {
-      lSystem.AddConstant(constants[i], ActionEnum::NO_ACTION);
-    }
-  }
-
-  lSystem.SetAxiom(iniFile.Get("lsystem", "axiom", ""));
-
-  for (int i = 0; i < constants.size(); ++i)
-  {
-    std::string ruleName = "rule" + std::to_string(i);
-    std::string rule = iniFile.Get("lsystem", ruleName, std::string(1, constants[i]));
-
-    lSystem.SetConstantRule(constants[i], rule);
-  }
 }
 
 bool InitSDL(SDL_Window *&window, SDL_GLContext& gl, const ConfigurationType& config)
@@ -258,17 +156,14 @@ int main(int argc, char** argv)
   std::cout << "Getting config from " << iniFile << "." << std::endl;
   if (saveFinal) std::cout << "Saving image to " << outputFile << "." << std::endl;
 
-  INIReader reader(iniFile);
-  LSystem lSystem;
   ConfigurationType config;
+  ConfigParser parser(iniFile, config);
 
-  ParseWindowConfiguration(reader, config);
-  ParseGeneralConfiguration(reader, config);
-  ParseSystemConfiguration(reader, lSystem);
-
+  LSystem lSystem;
+  lSystem.Configure(config.System);
   lSystem.Print();
 
-  std::vector<Constant> axiom = lSystem.GenerateNthAxiom(config.General.Level);
+  std::vector<LConstant> axiom = lSystem.GenerateNthAxiom(config.General.Level);
   
   int stepsPerFrame = axiom.size();
   if (config.General.AnimateTime > 0.0f)

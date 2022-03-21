@@ -20,8 +20,8 @@ struct RendererState
 class LSystemRenderer
 {
 public:
-  LSystemRenderer(SDL_Window* window, std::vector<Constant>& axiom);
-  LSystemRenderer(SDL_Window* window, std::vector<Constant>& axiom, float length, float lineWidth, float rotate, float startRotate);
+  LSystemRenderer(SDL_Window* window, std::vector<LConstant>& axiom);
+  LSystemRenderer(SDL_Window* window, std::vector<LConstant>& axiom, float length, float lineWidth, float rotate, float startRotate);
   ~LSystemRenderer();
 
   void Center();
@@ -40,7 +40,7 @@ public:
   void SetSaturation(float saturation);
   void SetOrigin(float x, float y);
 
-  void SetAxiom(std::vector<Constant>& axiom);
+  void SetAxiom(std::vector<LConstant>& axiom);
 
   bool SaveScreenshot(const std::string& filename, int padding = 20);
 
@@ -72,7 +72,7 @@ private:
 
   int m_drawIndex;
 
-  std::vector<Constant>& m_axiom;
+  std::vector<LConstant>& m_axiom;
 
   Util::HSV m_color;
 

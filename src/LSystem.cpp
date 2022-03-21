@@ -4,8 +4,12 @@
 #include <iostream>
 #include <algorithm>
 #include <utility>
+#include <random>
+#include <chrono>
 
 LSystem::LSystem()
+  : m_generator(std::chrono::system_clock::now().time_since_epoch().count())
+  , m_distribution(0.0f, 1.0f)
 {
 }
 
@@ -13,10 +17,77 @@ LSystem::~LSystem()
 {
 }
 
+void LSystem::Configure(SystemConfigType& config)
+{
+  for (auto c : config.Constants)
+  {
+    if (c.second == "MOVE_FORWARD")
+    {
+      AddConstant(c.first, ActionEnum::MOVE_FORWARD);
+    }
+    else if (c.second == "DRAW_FORWARD")
+    {
+      AddConstant(c.first, ActionEnum::DRAW_FORWARD);
+    }
+    else if (c.second == "ROTATE_CW")
+    {
+      AddConstant(c.first, ActionEnum::ROTATE_CW);
+    }
+    else if (c.second == "ROTATE_CCW")
+    {
+      AddConstant(c.first, ActionEnum::ROTATE_CCW);
+    }
+    else if (c.second == "PUSH_STATE")
+    {
+      AddConstant(c.first, ActionEnum::PUSH_STATE);
+    }
+    else if (c.second == "POP_STATE")
+    {
+      AddConstant(c.first, ActionEnum::POP_STATE);
+    }
+    else
+    {
+      AddConstant(c.first, ActionEnum::NO_ACTION);
+    }
+  }
+
+  SetAxiom(config.Axiom);
+
+  for (auto constRules : config.Rules)
+  {
+    char constName = constRules.first;
+    auto rules = constRules.second;
+    
+    auto constant = std::find_if(std::begin(m_constants), std::end(m_constants), [&](LConstant p) { return p.Name == constName;});
+    if (constant == std::end(m_constants))
+    {
+      std::cerr << "Failed to match \"" << constName << "\" to an existing constant." << std::endl;
+      continue;
+    }
+
+    for (auto weightedRule : rules)
+    {
+      float weight = weightedRule.first;
+      std::string ruleStr = weightedRule.second;
+
+      std::vector<LConstant> ruleVec;
+      bool success = SplitStringIntoConstants(ruleStr, ruleVec);
+
+      if (!success)
+      {
+        std::cerr << "Failed to split rule \"" << ruleStr << "\" string into constants." << std::endl;
+        continue;
+      }
+
+      Rule rule(weight, ruleVec);
+      m_constantRules[*constant].push_back(rule);
+    }
+  }
+}
+
 void LSystem::AddConstant(char value, ActionEnum action)
 {
-  Constant c = std::make_pair(value, action);
-  m_constants.push_back(c);
+  m_constants.emplace_back(value, action);
 }
 
 bool LSystem::SetAxiom(std::string axiom)
@@ -24,35 +95,50 @@ bool LSystem::SetAxiom(std::string axiom)
   return SplitStringIntoConstants(axiom, m_axiom);
 }
 
-std::vector<Constant> LSystem::GenerateNthAxiom(unsigned int n)
+std::vector<LConstant> LSystem::GenerateNthAxiom(unsigned int n)
 {
   if (n == 0)
   {
     return m_axiom;
   }
   
-  std::vector<Constant> output, precursor;
-  precursor = GenerateNthAxiom(n - 1);
+  std::vector<LConstant> output;
+  auto precursor = GenerateNthAxiom(n - 1);
 
-  for (auto iter = precursor.begin(); iter != precursor.end(); ++iter)
+  for (const LConstant& c : precursor)
   {
-    auto rule = m_constantRules.find(*iter);
-    if (rule != m_constantRules.end())
+    auto constantRules = m_constantRules.find(c);
+
+    float r = m_distribution(m_generator);
+    float totWeight = 0;
+    
+    if (constantRules != m_constantRules.end())
     {
-      output.insert(output.end(), rule->second.begin(), rule->second.end());
+      auto rules = constantRules->second;
+      bool picked = false;
+      for (int i = 0; i < rules.size(); ++i)
+      {
+        totWeight += rules[i].Weight;
+        if (r < totWeight)
+        {
+          output.insert(output.end(), rules[i].Expansion.begin(), rules[i].Expansion.end());
+          break;
+        }
+      }
     }
     else
     {
-      std::cerr << "Failed to find \"" << iter->first << "\" in constants list." << std::endl; 
+      std::cerr << "Failed to find \"" << c.Name << "\" in constants list." << std::endl; 
+      break;
     }
   }
 
   return output;
 }
 
-bool LSystem::SetConstantRule(char constant, std::string rule)
+bool LSystem::SetConstantRule(char constant, float weight, std::string rule)
 {
-  auto c = std::find_if(std::begin(m_constants), std::end(m_constants), [&](Constant p) { return p.first == constant;});
+  auto c = std::find_if(std::begin(m_constants), std::end(m_constants), [&](LConstant p) { return p.Name == constant;});
 
   if (c == std::end(m_constants))
   {
@@ -60,12 +146,13 @@ bool LSystem::SetConstantRule(char constant, std::string rule)
     return false;
   }
 
-  std::vector<Constant> ruleVec;
+  std::vector<LConstant> ruleVec;
   bool success = SplitStringIntoConstants(rule, ruleVec);
 
   if (success)
   {
-    m_constantRules[*c] = ruleVec;
+    Rule rule(weight, ruleVec);
+    m_constantRules[*c].push_back(rule);
   }
 
   return success;
@@ -74,44 +161,44 @@ bool LSystem::SetConstantRule(char constant, std::string rule)
 void LSystem::Print()
 {
   std::cout << "Constants: " << std::endl;
-  for (auto iter = m_constants.begin(); iter != m_constants.end(); ++iter)
+  for (auto& constant : m_constants)
   {
-    std::cout << iter->first;
-
-    if (m_constantRules.find(*iter) != m_constantRules.end())
+    auto rules = m_constantRules.find(constant);
+    if (rules != m_constantRules.end())
     {
-      auto rules = m_constantRules[*iter];
-      std::cout << " -> ";
-      for (auto ruleIter = rules.begin(); ruleIter != rules.end(); ++ruleIter)
+      for (auto& rule : rules->second)
       {
-        std::cout << ruleIter->first;
+        std::cout << constant.Name << " -" << rule.Weight << "-> ";
+        for (auto& c : rule.Expansion)
+        {
+          std::cout << c.Name;
+        }
+        std::cout << std::endl;
       }
     }
-
-    std::cout << std::endl;
   }
 
   std::cout << "Axiom: ";
-  for (auto iter = m_axiom.begin(); iter != m_axiom.end(); ++iter)
+  for (auto& c : m_axiom)
   {
-    std::cout << iter->first;
+    std::cout << c.Name;
   }
   std::cout << std::endl;
 }
 
-bool LSystem::SplitStringIntoConstants(std::string input, std::vector<Constant>& outputVec)
+bool LSystem::SplitStringIntoConstants(std::string input, std::vector<LConstant>& outputVec)
 {
-  for (auto iter = input.begin(); iter != input.end(); ++iter)
+  for (char c : input)
   {
-    auto c = std::find_if(std::begin(m_constants), std::end(m_constants), [&](Constant p) { return p.first == *iter;});
+    auto constant = std::find_if(std::begin(m_constants), std::end(m_constants), [&](LConstant p) { return p.Name == c;});
     
-    if (c != std::end(m_constants))
+    if (constant != std::end(m_constants))
     {
-      outputVec.push_back(*c);
+      outputVec.push_back(*constant);
     }
     else
     {
-      std::cerr << "Failed to find \"" << *iter << "\" in constants." << std::endl;
+      std::cerr << "Failed to find \"" << c << "\" in constants." << std::endl;
       return false;
     }
   }
