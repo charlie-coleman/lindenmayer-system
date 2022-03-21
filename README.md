@@ -2,9 +2,9 @@
 
 [Lindenmayer systems](https://en.wikipedia.org/wiki/L-system) are a method of modelling plants and generating fractals.
 
-This software is meant to facilitate rendering and capturing L-systems. It uses SDL2 & OpenGL to draw the L-system and can capture the resulting image in BMP format.
+This software is meant to facilitate rendering and capturing L-systems. It uses SDL2 & OpenGL to draw the L-system and can capture the resulting image in PNG format.
 
-Included is an example.ini configuration file. An ini must be provided that defines the window parameters, draw settings, and L-system definitions that the software will use. You can also provide an output filepath to which the BMP will be saved. 
+Included is an example.ini configuration file. An ini must be provided that defines the window parameters, draw settings, and L-system definitions that the software will use. You can also provide an output filepath to which the PNG will be saved. 
 
 ### Synopsis
 
