@@ -163,7 +163,7 @@ int main(int argc, char** argv)
   lSystem.Configure(config.System);
   lSystem.Print();
 
-  std::vector<LConstant> axiom = lSystem.GenerateNthAxiom(config.General.Level);
+  std::vector<LConstant> axiom = lSystem.GenerateNthAxiom(config.General.Generation);
   
   int stepsPerFrame = axiom.size();
   if (config.General.AnimateTime > 0.0f)
@@ -173,7 +173,8 @@ int main(int argc, char** argv)
   }
   int endFrames = (int)std::round(config.General.EndFrameTime * config.Window.Framerate);
 
-  std::cout << std::endl << config.General.Level << " generation axiom. Length=" << axiom.size() << ". Rendering " << stepsPerFrame << " steps per frame" << std::endl;
+  std::cout << std::endl << config.General.Generation << " generation axiom. Length=" << axiom.size() << "." << std::endl;
+  if (config.General.Animate) std::cout << "Rendering " << stepsPerFrame << " steps per frame. Lingering on final frame for " << endFrames << " frames." << std::endl;
 
   SDL_Window* window;
   SDL_GLContext gl;

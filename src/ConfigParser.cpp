@@ -21,7 +21,7 @@ void ConfigParser::ParseWindowConfiguration(INIReader& ini, ConfigurationType& c
 
 void ConfigParser::ParseGeneralConfiguration(INIReader& ini, ConfigurationType& config)
 {
-  config.General.Level            = ini.GetInteger("general", "level", 3);
+  config.General.Generation       = ini.GetInteger("general", "generation", 3);
   config.General.Length           = ini.GetInteger("general", "length", 5);
   config.General.Angle            = ini.GetFloat("general", "angle", 90.0f);
   config.General.Animate          = ini.GetBoolean("general", "animate", false);

@@ -16,7 +16,7 @@ struct WindowConfigType
 
 struct GeneralConfigType
 {
-  int Level;
+  int Generation;
   int Length;
   int LineWidth;
   bool Animate;
