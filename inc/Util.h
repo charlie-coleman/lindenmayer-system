@@ -20,7 +20,7 @@ namespace Util
     float Blue;
   };
 
-  std::vector<std::string> split(std::string input, std::string delim);
+  std::vector<std::string> split(std::string input, const char delim);
   
   RGB HSV_To_RGB(HSV hsv);
 }

@@ -8,7 +8,7 @@
 #include <iostream>
 #include <limits>
 
-LSystemRenderer::LSystemRenderer(SDL_Window* window, std::vector<Constant>& axiom)
+LSystemRenderer::LSystemRenderer(SDL_Window* window, std::vector<LConstant>& axiom)
   : m_window(window)
   , m_axiom(axiom)
   , m_length(1)
@@ -29,7 +29,7 @@ LSystemRenderer::LSystemRenderer(SDL_Window* window, std::vector<Constant>& axio
   SDL_GetWindowSize(m_window, &m_windowWidth, &m_windowHeight);
 }
 
-LSystemRenderer::LSystemRenderer(SDL_Window* window, std::vector<Constant>& axiom, float length, float lineWidth, float rotate, float startRotate)
+LSystemRenderer::LSystemRenderer(SDL_Window* window, std::vector<LConstant>& axiom, float length, float lineWidth, float rotate, float startRotate)
   : m_window(window)
   , m_axiom(axiom)
   , m_length(length)
@@ -95,7 +95,7 @@ void LSystemRenderer::SetSaturation(float saturation)
   m_color.Saturation = saturation;
 }
 
-void LSystemRenderer::SetAxiom(std::vector<Constant>& axiom)
+void LSystemRenderer::SetAxiom(std::vector<LConstant>& axiom)
 {
   m_axiom = axiom;
 }
@@ -119,7 +119,7 @@ void LSystemRenderer::Center()
     float new_y = m_y + m_length * sinf(m_currRot * PI / 180.0f);
 
     RendererState s;
-    switch (iter->second)
+    switch (iter->Action)
     {
       case ActionEnum::DRAW_FORWARD:
         m_x = new_x;
@@ -352,10 +352,10 @@ void LSystemRenderer::RenderStep(int index)
   float new_x = m_x + m_length * cosf(m_currRot * PI / 180.0f);
   float new_y = m_y + m_length * sinf(m_currRot * PI / 180.0f);
 
-  Constant c = m_axiom[index];
+  LConstant c = m_axiom[index];
 
   RendererState s;
-  switch (c.second)
+  switch (c.Action)
   {
     case ActionEnum::DRAW_FORWARD:
       DrawLine(m_x, m_y, new_x, new_y);

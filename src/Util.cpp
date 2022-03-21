@@ -1,30 +1,19 @@
 #include "Util.h"
 #include <cmath>
 
-std::vector<std::string> Util::split(std::string input, std::string delim)
+std::vector<std::string> Util::split(std::string input, const char delim)
 {
   std::vector<std::string> output;
 
-  if (!input.empty())
+  size_t start;
+  size_t end = 0;
+
+  while ((start = input.find_first_not_of(delim, end)) != std::string::npos)
   {
-    std::string::size_type start = 0;
-
-    do
-    {
-      size_t x = input.find(delim, start);
-
-      if (x == std::string::npos)
-      {
-        break;
-      }
-
-      output.push_back(input.substr(start, x-start));
-      
-      start += delim.size() + 1;
-    } while (true);
-
-    output.push_back(input.substr(start));
+    end = input.find(delim, start);
+    output.push_back(input.substr(start, end - start));
   }
+
   return output;
 }
 
