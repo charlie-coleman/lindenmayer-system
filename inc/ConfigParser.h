@@ -25,6 +25,8 @@ struct GeneralConfigType
   float Angle;
   float StartingRotation;
   bool Center;
+  int FixedX;
+  int FixedY;
   bool Colorful;
   float Saturation;
   int Padding;

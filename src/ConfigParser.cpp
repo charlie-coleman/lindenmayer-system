@@ -30,6 +30,8 @@ void ConfigParser::ParseGeneralConfiguration(INIReader& ini, ConfigurationType& 
   config.General.StartingRotation = ini.GetFloat("general", "startingrotation", 0.0f);
   config.General.LineWidth        = ini.GetFloat("general", "linewidth", 1.0f);
   config.General.Center           = ini.GetBoolean("general", "center", true);
+  config.General.FixedX           = ini.GetInteger("general", "fixedx", -1);
+  config.General.FixedY           = ini.GetInteger("general", "fixedy", -1);
   config.General.Colorful         = ini.GetBoolean("general", "colorful", false);
   config.General.Saturation       = ini.GetFloat("general", "saturation", 0.6f);
   config.General.Padding          = ini.GetInteger("general", "padding", 20);

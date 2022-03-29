@@ -8,44 +8,21 @@
 #include <iostream>
 #include <limits>
 
-LSystemRenderer::LSystemRenderer(SDL_Window* window, std::vector<LConstant>& axiom)
+LSystemRenderer::LSystemRenderer(SDL_Window* window, std::vector<LConstant>& axiom, const ConfigurationType& config)
   : m_window(window)
   , m_axiom(axiom)
-  , m_length(1)
-  , m_lineWidth(1.0f)
-  , m_rotate(90.0f)
-  , m_origX(0.0f)
-  , m_origY(0.0f)
-  , m_startRot(0.0f)
-  , m_center(true)
-  , m_colorful(false)
   , m_stateStack()
   , m_drawIndex(0)
+  , m_config(config)
 {
   m_color.Hue = 0;
-  m_color.Saturation = 0.5f;
+  m_color.Saturation = m_config.General.Saturation;
   m_color.Value = 1;
-  
-  SDL_GetWindowSize(m_window, &m_windowWidth, &m_windowHeight);
-}
 
-LSystemRenderer::LSystemRenderer(SDL_Window* window, std::vector<LConstant>& axiom, float length, float lineWidth, float rotate, float startRotate)
-  : m_window(window)
-  , m_axiom(axiom)
-  , m_length(length)
-  , m_lineWidth(lineWidth)
-  , m_rotate(rotate)
-  , m_startRot(startRotate)
-  , m_origX(0.0f)
-  , m_origY(0.0f)
-  , m_center(true)
-  , m_colorful(false)
-  , m_stateStack()
-  , m_drawIndex(0)
-{
-  m_color.Hue = 0;
-  m_color.Saturation = 0.5f;
-  m_color.Value = 1;
+  m_lineWidth = m_config.General.LineWidth;
+
+  m_origX = (m_config.General.FixedX != -1) ? m_config.General.FixedX : 0.0f;
+  m_origY = (m_config.General.FixedY != -1) ? m_config.General.FixedY : 0.0f;
 
   SDL_GetWindowSize(m_window, &m_windowWidth, &m_windowHeight);
 }
@@ -54,45 +31,10 @@ LSystemRenderer::~LSystemRenderer()
 {
 }
 
-void LSystemRenderer::SetLength(float length)
-{
-  m_length = length;
-}
-
-void LSystemRenderer::SetLineWidth(float lineWidth)
-{
-  m_lineWidth = lineWidth;
-}
-
-void LSystemRenderer::SetRotation(float rotate)
-{
-  m_rotate = rotate;
-}
-
-void LSystemRenderer::SetStartRotation(float startRotate)
-{
-  m_startRot = startRotate;
-}
-
 void LSystemRenderer::SetOrigin(float x, float y)
 {
   m_origX = x;
   m_origY = y;
-}
-
-void LSystemRenderer::SetCenter(bool center)
-{
-  m_center = center;
-}
-
-void LSystemRenderer::SetColorful(bool colorful)
-{
-  m_colorful = colorful;
-}
-
-void LSystemRenderer::SetSaturation(float saturation)
-{
-  m_color.Saturation = saturation;
 }
 
 void LSystemRenderer::SetAxiom(std::vector<LConstant>& axiom)
@@ -104,7 +46,7 @@ void LSystemRenderer::Center()
 {
   m_x = m_origX;
   m_y = m_origY;
-  m_currRot = m_startRot;
+  m_currRot = m_config.General.StartingRotation;
   m_stateStack = std::stack<RendererState>();
 
   m_minX = std::numeric_limits<float>::max();
@@ -115,8 +57,8 @@ void LSystemRenderer::Center()
 
   for (auto iter = m_axiom.begin(); iter != m_axiom.end(); ++iter)
   {
-    float new_x = m_x + m_length * cosf(m_currRot * PI / 180.0f);
-    float new_y = m_y + m_length * sinf(m_currRot * PI / 180.0f);
+    float new_x = m_x + m_config.General.Length * cosf(m_currRot * PI / 180.0f);
+    float new_y = m_y + m_config.General.Length * sinf(m_currRot * PI / 180.0f);
 
     RendererState s;
     switch (iter->Action)
@@ -130,11 +72,11 @@ void LSystemRenderer::Center()
         m_y = new_y;
         break;
       case ActionEnum::ROTATE_CW:
-        m_currRot += m_rotate;
+        m_currRot += m_config.General.Angle;
         m_currRot = fmodf(m_currRot, 360.0f);
         break;
       case ActionEnum::ROTATE_CCW:
-        m_currRot -= m_rotate;
+        m_currRot -= m_config.General.Angle;
         m_currRot = fmodf(m_currRot, 360.0f);
         break;
       case ActionEnum::PUSH_STATE:
@@ -177,12 +119,19 @@ void LSystemRenderer::Center()
 
   std::cout << "Adjusting origin by (" << diffX << ", " << diffY << ")." << std::endl; 
 
-  m_minX -= (int)diffX;
-  m_minY -= (int)diffY;
-  m_maxX -= (int)diffX;
-  m_maxY -= (int)diffY;
-  m_origX -= (int)diffX;
-  m_origY -= (int)diffY;
+  if (m_config.General.FixedX == -1)
+  {
+    m_minX -= (int)diffX;
+    m_maxX -= (int)diffX;
+    m_origX -= (int)diffX;
+  }
+
+  if (m_config.General.FixedY == -1)
+  {
+    m_minY -= (int)diffY;
+    m_maxY -= (int)diffY;
+    m_origY -= (int)diffY;
+  }
 }
 
 bool LSystemRenderer::SaveScreenshot(const std::string& filepath, int padding)
@@ -334,13 +283,13 @@ void LSystemRenderer::SetupRender()
 {
   m_x = m_origX;
   m_y = m_origY;
-  m_currRot = m_startRot;
+  m_currRot = m_config.General.StartingRotation;
   m_stateStack = std::stack<RendererState>();
 }
 
 void LSystemRenderer::RenderStep(int index)
 {
-  if (m_colorful)
+  if (m_config.General.Colorful)
   {
     m_color.Hue = (float)index / (float)m_axiom.size();
     
@@ -349,8 +298,8 @@ void LSystemRenderer::RenderStep(int index)
     glColor4f(rgb.Red, rgb.Green, rgb.Blue, 1.0f);
   }
 
-  float new_x = m_x + m_length * cosf(m_currRot * PI / 180.0f);
-  float new_y = m_y + m_length * sinf(m_currRot * PI / 180.0f);
+  float new_x = m_x + m_config.General.Length * cosf(m_currRot * PI / 180.0f);
+  float new_y = m_y + m_config.General.Length * sinf(m_currRot * PI / 180.0f);
 
   LConstant c = m_axiom[index];
 
@@ -367,11 +316,11 @@ void LSystemRenderer::RenderStep(int index)
       m_y = new_y;
       break;
     case ActionEnum::ROTATE_CW:
-      m_currRot += m_rotate;
+      m_currRot += m_config.General.Angle;
       m_currRot = fmodf(m_currRot, 360.0f);
       break;
     case ActionEnum::ROTATE_CCW:
-      m_currRot -= m_rotate;
+      m_currRot -= m_config.General.Angle;
       m_currRot = fmodf(m_currRot, 360.0f);
       break;
     case ActionEnum::PUSH_STATE:

@@ -192,11 +192,7 @@ int main(int argc, char** argv)
   glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
   glClear(GL_COLOR_BUFFER_BIT);
 
-  LSystemRenderer LS_Renderer(window, axiom, config.General.Length, config.General.LineWidth, config.General.Angle, config.General.StartingRotation);
-
-  LS_Renderer.SetCenter(config.General.Center);
-  LS_Renderer.SetColorful(config.General.Colorful);
-  LS_Renderer.SetSaturation(config.General.Saturation);
+  LSystemRenderer LS_Renderer(window, axiom, config);
 
   if (config.General.Center) LS_Renderer.Center();
 

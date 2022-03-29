@@ -2,6 +2,7 @@
 #define _LSYSTEM_RENDERER_H_
 
 #include "LSystem.h"
+#include "ConfigParser.h"
 #include "Util.h"
 
 #include "SDL.h"
@@ -20,8 +21,7 @@ struct RendererState
 class LSystemRenderer
 {
 public:
-  LSystemRenderer(SDL_Window* window, std::vector<LConstant>& axiom);
-  LSystemRenderer(SDL_Window* window, std::vector<LConstant>& axiom, float length, float lineWidth, float rotate, float startRotate);
+  LSystemRenderer(SDL_Window* window, std::vector<LConstant>& axiom, const ConfigurationType& config);
   ~LSystemRenderer();
 
   void Center();
@@ -30,14 +30,6 @@ public:
   bool Render();
   bool RenderNextSteps(int steps = 1);
 
-  void SetLength(float length);
-  void SetLineWidth(float linewidth);
-  void SetRotation(float rotate);
-  void SetStartRotation(float startRotate);
-  void SetCenter(bool center);
-
-  void SetColorful(bool colorful);
-  void SetSaturation(float saturation);
   void SetOrigin(float x, float y);
 
   void SetAxiom(std::vector<LConstant>& axiom);
@@ -50,13 +42,10 @@ private:
 
   SDL_Window* m_window;
 
-  float m_length;
-  float m_lineWidth;
-  float m_rotate;
-  bool  m_center;
-  bool  m_colorful;
+  const ConfigurationType& m_config;
 
-  float m_startRot;
+  float m_lineWidth;
+
   float m_origX;
   float m_origY;
   float m_minX;
