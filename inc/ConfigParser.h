@@ -2,6 +2,7 @@
 #define _CONFIG_PARSER_H_
 
 #include "INIReader.h"
+#include "Util.h"
 
 #include <string>
 #include <vector>
@@ -28,6 +29,8 @@ struct GeneralConfigType
   int FixedX;
   int FixedY;
   bool Colorful;
+  Util::RGB Color;
+  Util::RGB Background;
   float Saturation;
   int Padding;
 };
@@ -57,6 +60,8 @@ protected:
   void ParseGeneralConfiguration(INIReader& ini, ConfigurationType& config);
   void ParseSystemConfiguration(INIReader& ini, ConfigurationType& config);
   void ParseRuleConfiguration(INIReader& ini, ConfigurationType& config);
+
+  Util::RGB ParseColorString(std::string color);
 };
 
 #endif

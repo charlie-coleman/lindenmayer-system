@@ -35,6 +35,12 @@ void ConfigParser::ParseGeneralConfiguration(INIReader& ini, ConfigurationType& 
   config.General.Colorful         = ini.GetBoolean("general", "colorful", false);
   config.General.Saturation       = ini.GetFloat("general", "saturation", 0.6f);
   config.General.Padding          = ini.GetInteger("general", "padding", 20);
+
+  std::string color = ini.Get("general", "color", "1.0,1.0,1.0");
+  config.General.Color = ParseColorString(color);
+
+  std::string background = ini.Get("general", "background", "0.0,0.0,0.0");
+  config.General.Background = ParseColorString(background);
 }
 
 void ConfigParser::ParseSystemConfiguration(INIReader& ini, ConfigurationType& config)
@@ -81,4 +87,18 @@ void ConfigParser::ParseRuleConfiguration(INIReader& ini, ConfigurationType& con
       config.System.Rules[config.System.Constants[i].first].push_back(std::make_pair(weights[j], rule));
     }
   }
+}
+
+Util::RGB ConfigParser::ParseColorString(std::string color)
+{
+  Util::RGB output(1.0,1.0,1.0);
+  std::vector<std::string> colorParts = Util::split(color, ',');
+  if (colorParts.size() == 3)
+  {
+    output.Red   = std::stof(colorParts[0], NULL);
+    output.Green = std::stof(colorParts[1], NULL);
+    output.Blue  = std::stof(colorParts[2], NULL);
+  }
+
+  return output;
 }

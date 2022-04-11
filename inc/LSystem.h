@@ -8,16 +8,16 @@
 
 #include "ConfigParser.h"
 
-enum class ActionEnum
+enum class ActionEnum : unsigned char
 {
   NO_ACTION = 0,
-  MOVE_FORWARD,
-  DRAW_FORWARD,
-  ROTATE_CW,
-  ROTATE_CCW,
-  PUSH_STATE,
-  POP_STATE,
-  SIZE_OF_CONSTANT_ACTION
+  MOVE_FORWARD = 1,
+  DRAW_FORWARD = 2,
+  ROTATE_CW = 3,
+  ROTATE_CCW = 4,
+  PUSH_STATE = 5,
+  POP_STATE = 6,
+  SIZE_OF_CONSTANT_ACTION = 7
 };
 
 struct LConstant
@@ -37,6 +37,18 @@ struct LConstant
   }
 };
 
+struct Rule
+{
+  float Weight;
+  std::vector<LConstant> Expansion;
+
+  Rule(float weight, std::vector<LConstant> exp)
+  {
+    Weight = weight;
+    Expansion = exp;
+  }
+};
+
 namespace std
 {
   template <>
@@ -49,18 +61,6 @@ namespace std
       return (hash<char>()(c.Name) ^ (hash<int>()((int)c.Action) << 1));
     }
   };
-};
-
-struct Rule
-{
-  float Weight;
-  std::vector<LConstant> Expansion;
-
-  Rule(float weight, std::vector<LConstant> exp)
-  {
-    Weight = weight;
-    Expansion = exp;
-  }
 };
 
 class LSystem

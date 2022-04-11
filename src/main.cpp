@@ -13,27 +13,53 @@
 #include "LSystemRenderer.h"
 #include "ConfigParser.h"
 
-SDL_bool HandleEvents()
+bool HandleEvents(bool& recalc, bool& capture)
 {
+  bool output = false;
   SDL_Event event;
   while(SDL_PollEvent(&event) != 0)
   {
     switch (event.type)
     {
       case SDL_QUIT:
-        return SDL_TRUE;
+        output = true;
+        break;
       case SDL_WINDOWEVENT:
         switch (event.window.type)
         {
           case SDL_WINDOWEVENT_CLOSE:
-            return SDL_TRUE;
+            output = true;
+            break;
+        }
+        break;
+      case SDL_KEYDOWN:
+        switch (event.key.keysym.sym)
+        {
+          case SDLK_F5:
+            recalc = true;
+            break;
+          default:
+            break;
+        }
+        break;
+      case SDL_KEYUP:
+        switch (event.key.keysym.sym)
+        {
+          case SDLK_F1:
+            capture = true;
+            break;
+          case SDLK_ESCAPE:
+            output = true;
+            break;
+          default:
+            break;
         }
         break;
       default:
-        return SDL_FALSE;
+        return false;
     }
   }
-  return SDL_FALSE;
+  return output;
 }
 
 void RedirectLog()
@@ -159,6 +185,18 @@ int main(int argc, char** argv)
   ConfigurationType config;
   ConfigParser parser(iniFile, config);
 
+  SDL_Window* window;
+  SDL_GLContext gl;
+  bool success = InitSDL(window, gl, config);
+
+  if (!success)
+  {
+    exit(-1);
+  }
+
+  glClearColor(config.General.Background.Red, config.General.Background.Green, config.General.Background.Blue, 0.0f);
+  glClear(GL_COLOR_BUFFER_BIT);
+
   LSystem lSystem;
   lSystem.Configure(config.System);
   lSystem.Print();
@@ -175,22 +213,6 @@ int main(int argc, char** argv)
 
   std::cout << std::endl << config.General.Generation << " generation axiom. Length=" << axiom.size() << "." << std::endl;
   if (config.General.Animate) std::cout << "Rendering " << stepsPerFrame << " steps per frame. Lingering on final frame for " << endFrames << " frames." << std::endl;
-
-  SDL_Window* window;
-  SDL_GLContext gl;
-  bool success = InitSDL(window, gl, config);
-
-  if (!success)
-  {
-    exit(-1);
-  }
-
-  bool saved = false;
-  bool doneRendering = false;
-  SDL_bool done = SDL_FALSE;
-
-  glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-  glClear(GL_COLOR_BUFFER_BIT);
 
   LSystemRenderer LS_Renderer(window, axiom, config);
 
@@ -211,9 +233,47 @@ int main(int argc, char** argv)
     std::filesystem::create_directories(outputPath.parent_path());
   }
 
-  int frame = 0;
+  int frame          = 0;
+  int captureCount   = 0;
+  bool saved         = false;
+  bool doneRendering = false;
+  bool recalc        = false;
+  bool closeWindow   = false;
+  bool capture       = false;
+  bool done          = false;
+
   while(!done)
   {
+    if (recalc)
+    {
+      glClear(GL_COLOR_BUFFER_BIT);
+      SDL_GL_SwapWindow(window);
+      glClear(GL_COLOR_BUFFER_BIT);
+      
+      std::vector<LConstant> axiom = lSystem.GenerateNthAxiom(config.General.Generation);
+      
+      int stepsPerFrame = axiom.size();
+      if (config.General.AnimateTime > 0.0f)
+      {
+        stepsPerFrame = (int)std::round(axiom.size() / (config.General.AnimateTime * config.Window.Framerate));
+        stepsPerFrame = std::max(stepsPerFrame, 1);
+      }
+      int endFrames = (int)std::round(config.General.EndFrameTime * config.Window.Framerate);
+
+      std::cout << std::endl << config.General.Generation << " generation axiom. Length=" << axiom.size() << "." << std::endl;
+      if (config.General.Animate) std::cout << "Rendering " << stepsPerFrame << " steps per frame. Lingering on final frame for " << endFrames << " frames." << std::endl;
+
+      LS_Renderer.SetAxiom(axiom);
+
+      if (config.General.Center) LS_Renderer.Center();
+
+      LS_Renderer.SetupGL(config.Window.Display);
+
+      recalc = false;
+      doneRendering = false;
+      frame = 0;
+    }
+
     bool finishedRenderingThisFrame = false;
     Uint64 start = SDL_GetPerformanceCounter();
 
@@ -278,15 +338,32 @@ int main(int argc, char** argv)
       }
     }
 
-    done = HandleEvents();
+    done = HandleEvents(recalc, capture);
+
+    if (capture)
+    {
+      std::filesystem::path filepath(outputFile);
+      std::filesystem::path folder = filepath.parent_path();
+      std::filesystem::path name = filepath.stem();
+      std::filesystem::path extension = filepath.extension();
+
+      std::filesystem::path newName(name.string() + "_" + std::to_string(++captureCount) + extension.string());
+      std::filesystem::path resultant = folder / newName;
+
+      SDL_GL_SwapWindow(window);
+      LS_Renderer.SaveScreenshot(resultant.string(), config.General.Padding);
+      SDL_GL_SwapWindow(window);
+
+      capture = false;
+    }
 
     if (!config.Window.Display)
     {
       if (saveFinal && saved && doneRendering)
-        done = SDL_TRUE;
+        done = true;
 
       if(!saveFinal && doneRendering)
-        done = SDL_TRUE;
+        done = true;
     }
 
     Uint64 end = SDL_GetPerformanceCounter();

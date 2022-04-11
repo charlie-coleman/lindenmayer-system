@@ -297,6 +297,10 @@ void LSystemRenderer::RenderStep(int index)
 
     glColor4f(rgb.Red, rgb.Green, rgb.Blue, 1.0f);
   }
+  else
+  {
+    glColor4f(m_config.General.Color.Red, m_config.General.Color.Green, m_config.General.Color.Blue, 1.0f);
+  }
 
   float new_x = m_x + m_config.General.Length * cosf(m_currRot * PI / 180.0f);
   float new_y = m_y + m_config.General.Length * sinf(m_currRot * PI / 180.0f);
